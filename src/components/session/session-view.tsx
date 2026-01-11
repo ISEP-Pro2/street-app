@@ -9,6 +9,7 @@ import { TrashIcon, PencilIcon } from 'lucide-react';
 import { SKILL_LABELS, TECHNIQUE_LABELS, MOVEMENT_LABELS, ASSISTANCE_LABELS, FORM_QUALITY_LABELS, PAIN_TAG_LABELS } from '@/lib/constants';
 import type { Set, Session, Combo } from '@/types';
 import { SessionCombos } from './session-combos';
+import { SessionExposureSummary } from './session-exposure-summary';
 import { getUserPreferencesAction } from '@/app/app/combo/actions';
 
 export function SessionView() {
@@ -158,6 +159,9 @@ export function SessionView() {
                 </div>
               </div>
             </Card>
+
+            {/* Exposure Summary */}
+            {session && <SessionExposureSummary sessionId={session.id} />}
 
             {/* Combos Section */}
             {combos.length > 0 && (

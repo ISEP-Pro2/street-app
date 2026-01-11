@@ -20,6 +20,27 @@ export interface CoachContext {
     status: 'done' | 'skipped' | 'planned' | null;
     date: string | null;
   };
+  exposure: {
+    last_session: {
+      raw_hold_seconds: number;
+      etp_seconds: number;
+      by_skill: {
+        planche: number;
+        front: number;
+      };
+    };
+    last_7d: {
+      raw_hold_seconds: number;
+      etp_seconds: number;
+      by_skill: {
+        planche: number;
+        front: number;
+      };
+    };
+    trend_7d_vs_14d: {
+      etp_change_percent: number;
+    };
+  };
 }
 
 export interface CoachSettings {

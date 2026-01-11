@@ -224,6 +224,11 @@ RECENT PERFORMANCE (Last 7 days):
 - Hard Sets (RPE≥8): ${context.last_7d.hard_sets}
 - Pain Flags: ${context.last_7d.pain_flags_count}
 
+EXPOSURE (Effective Technical Exposure - ETP weighted by technique & assistance):
+- Last Session: ${context.exposure.last_session.etp_seconds}s ETP (${context.exposure.last_session.by_skill.planche}s planche, ${context.exposure.last_session.by_skill.front}s front) from ${context.exposure.last_session.raw_hold_seconds}s raw hold
+- Last 7 Days: ${context.exposure.last_7d.etp_seconds}s ETP (${context.exposure.last_7d.by_skill.planche}s planche, ${context.exposure.last_7d.by_skill.front}s front) from ${context.exposure.last_7d.raw_hold_seconds}s raw hold
+- ETP Trend: ${context.exposure.trend_7d_vs_14d.etp_change_percent > 0 ? '+' : ''}${context.exposure.trend_7d_vs_14d.etp_change_percent}% (vs 14 days ago)
+
 TRENDS (Last 28 days):
 - Load Trend: ${context.last_28d.load_trend.join(', ')}
 - KPI Trend: ${context.last_28d.kpi_trend.join(', ')}
@@ -272,7 +277,7 @@ Generate a JSON response with this exact structure:
   }
 }
 
-Respect the settings ratio and weekly cap. Return ONLY valid JSON, no markdown.`;
+Respect the settings ratio and weekly cap. Use the ETP exposure data to adjust intensity - if ETP is decreasing, consider a push; if very high, consider deload. Return ONLY valid JSON, no markdown.`;
 }
 
 function validatePlanSchema(plan: any): void {

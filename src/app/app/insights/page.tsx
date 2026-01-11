@@ -8,11 +8,14 @@ import {
   getWeeklyTrainingMetrics,
   getSkillLoadByWeek,
 } from '@/lib/supabase/insights';
+import { getUserLastNWeeksExposure } from '@/lib/supabase/exposure';
+import { aggregateByWeek } from '@/lib/exposure';
 import { GlobalScoreChart } from '@/components/insights/global-score-chart';
 import { TrainingStatusCard } from '@/components/insights/training-status-card';
 import { SkillContributionChart } from '@/components/insights/skill-contribution-chart';
 import { SkillLoadTrend } from '@/components/insights/skill-load-trend';
 import { SkillDrillDown } from '@/components/insights/skill-drill-down';
+import { ExposureChart, SkillETPChart } from '@/components/insights/exposure-chart';
 import { CoachPlanViewer } from '@/components/coach/coach-plan-viewer';
 
 export const metadata = {
@@ -53,12 +56,16 @@ async function InsightsPageContent() {
   }
 
   // Fetch data in parallel
-  const [globalScoreData, hardSetsData, trainingStats, skillLoadData] = await Promise.all([
+  const [globalScoreData, hardSetsData, trainingStats, skillLoadData, exposureEntries] = await Promise.all([
     getGlobalScoreData(user.id),
     getHardSetsPerWeek(user.id),
     getWeeklyTrainingMetrics(user.id),
     getSkillLoadByWeek(user.id),
+    getUserLastNWeeksExposure(user.id, 8),
   ]);
+
+  // Calculate exposure by week
+  const weeklyExposure = aggregateByWeek(exposureEntries);
 
   // Calculate training status
   const currentWeekScore = globalScoreData[globalScoreData.length - 1]?.score || 0;
@@ -115,6 +122,14 @@ async function InsightsPageContent() {
 
         {/* 3.5 SKILL LOAD TREND (Weekly Evolution) */}
         <SkillLoadTrend data={skillLoadData} />
+
+        {/* 3.75 EXPOSURE TRACKING (ETP = Effective Technical Exposure) */}
+        {weeklyExposure.length > 0 && (
+          <>
+            <ExposureChart weeklyData={weeklyExposure} />
+            <SkillETPChart weeklyData={weeklyExposure} />
+          </>
+        )}
 
         {/* 4. SKILL DRILL-DOWN (Voluntary Analysis) */}
         <SkillDrillDown

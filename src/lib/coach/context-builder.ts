@@ -1,6 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import type { CoachContext, CoachSettings } from './types';
+import { getUserLastNWeeksExposure, getSessionExposureData } from '@/lib/supabase/exposure';
+import { aggregateByWeek, calcSessionExposure } from '@/lib/exposure';
+import type { Skill } from '@/lib/exposure';
 
 export async function getServerSupabaseClient() {
   const cookieStore = await cookies();
@@ -70,6 +73,38 @@ export async function buildCoachContext(userId: string): Promise<CoachContext> {
       .eq('user_id', userId)
       .gte('performed_at', last28dDateStr);
 
+    // Get ETP exposure data (7 and 14 days for trend)
+    const exposureData7d = await getUserLastNWeeksExposure(userId, 1); // 7 days = 1 week
+    const exposureData14d = await getUserLastNWeeksExposure(userId, 2); // 14 days = 2 weeks
+    
+    // Get last session exposure
+    const { data: lastSessionData } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('user_id', userId)
+      .order('performed_date', { ascending: false })
+      .limit(1)
+      .single();
+    
+    let lastSessionExposure = {
+      raw_hold_seconds: 0,
+      etp_seconds: 0,
+      by_skill: { planche: 0, front: 0 },
+    };
+    
+    if (lastSessionData) {
+      const sessionSets = await getSessionExposureData(lastSessionData.id);
+      const sessionExposureRaw = calcSessionExposure(sessionSets);
+      lastSessionExposure = {
+        raw_hold_seconds: sessionExposureRaw.raw_hold_seconds,
+        etp_seconds: sessionExposureRaw.etp_seconds,
+        by_skill: {
+          planche: sessionExposureRaw.by_skill.planche.etp,
+          front: sessionExposureRaw.by_skill.front.etp,
+        },
+      };
+    }
+
     // Calculate 7-day stats
     const bodyweight = 75; // default, should fetch from user_preferences
     let globalLoad7d = 0;
@@ -133,6 +168,37 @@ export async function buildCoachContext(userId: string): Promise<CoachContext> {
       .order('seconds', { ascending: false })
       .limit(1);
 
+    // Calculate weekly aggregations for exposure
+    const aggregated7d = aggregateByWeek(exposureData7d);
+    const aggregated14d = aggregateByWeek(exposureData14d);
+    
+    // Get 7-day and 14-day totals
+    const exposure7d = aggregated7d.length > 0 
+      ? {
+          raw_hold_seconds: aggregated7d[aggregated7d.length - 1].raw_hold_seconds,
+          etp_seconds: aggregated7d[aggregated7d.length - 1].etp_seconds,
+          by_skill: {
+            planche: aggregated7d[aggregated7d.length - 1].by_skill.planche.etp,
+            front: aggregated7d[aggregated7d.length - 1].by_skill.front.etp,
+          },
+        }
+      : { raw_hold_seconds: 0, etp_seconds: 0, by_skill: { planche: 0, front: 0 } };
+    
+    const exposure14d = aggregated14d.length > 1 
+      ? {
+          raw_hold_seconds: aggregated14d[aggregated14d.length - 2].raw_hold_seconds,
+          etp_seconds: aggregated14d[aggregated14d.length - 2].etp_seconds,
+          by_skill: {
+            planche: aggregated14d[aggregated14d.length - 2].by_skill.planche.etp,
+            front: aggregated14d[aggregated14d.length - 2].by_skill.front.etp,
+          },
+        }
+      : { raw_hold_seconds: 0, etp_seconds: 0, by_skill: { planche: 0, front: 0 } };
+    
+    const etp_trend_percent = exposure14d.etp_seconds > 0
+      ? Math.round(((exposure7d.etp_seconds - exposure14d.etp_seconds) / exposure14d.etp_seconds) * 100)
+      : 0;
+
     return {
       last_7d: {
         global_load: Math.round(globalLoad7d),
@@ -154,6 +220,20 @@ export async function buildCoachContext(userId: string): Promise<CoachContext> {
       last_session: {
         status: (lastSession?.status as any) || null,
         date: lastSession?.date || null,
+      },
+      exposure: {
+        last_session: lastSessionExposure,
+        last_7d: {
+          raw_hold_seconds: Math.round(exposure7d.raw_hold_seconds),
+          etp_seconds: Math.round(exposure7d.etp_seconds),
+          by_skill: {
+            planche: Math.round(exposure7d.by_skill.planche),
+            front: Math.round(exposure7d.by_skill.front),
+          },
+        },
+        trend_7d_vs_14d: {
+          etp_change_percent: etp_trend_percent,
+        },
       },
     };
   } catch (error) {
