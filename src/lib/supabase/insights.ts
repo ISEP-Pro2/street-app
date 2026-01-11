@@ -431,6 +431,36 @@ export async function getWeeklyTrainingMetrics(userId: string) {
 
   if (error) throw error;
 
+  // Get last 60 days of combos to get combo_items
+  const { data: combos, error: combosError } = await supabase
+    .from('combos')
+    .select('id, performed_at')
+    .eq('user_id', userId)
+    .gte('performed_at', startDate.toISOString().split('T')[0])
+    .order('performed_at', { ascending: true });
+
+  if (combosError) throw combosError;
+
+  let comboItems: any[] = [];
+  if (combos && combos.length > 0) {
+    const comboIds = combos.map((c) => c.id);
+    const { data: items } = await supabase
+      .from('combo_items')
+      .select('*')
+      .in('combo_id', comboIds);
+    
+    if (items) {
+      // Add performed_at from parent combo to each item
+      comboItems = items.map((item) => {
+        const parentCombo = combos.find((c) => c.id === item.combo_id);
+        return {
+          ...item,
+          performed_at: parentCombo?.performed_at || new Date().toISOString(),
+        };
+      });
+    }
+  }
+
   // Group sets by ISO week
   const metricsByWeek = new Map<string, WeeklyMetrics>();
 
@@ -497,6 +527,50 @@ export async function getWeeklyTrainingMetrics(userId: string) {
 
     // Calculate hard ratio
     metrics.hard_ratio = metrics.total_sets > 0 ? metrics.hard_sets / metrics.total_sets : 0;
+  });
+
+  // Process combo items
+  comboItems.forEach((item) => {
+    const date = new Date(item.performed_at);
+    const weekNumber = getISOWeek(date);
+    const year = date.getFullYear();
+    const weekKey = `${year}-W${String(weekNumber).padStart(2, '0')}`;
+
+    if (!metricsByWeek.has(weekKey)) {
+      metricsByWeek.set(weekKey, {
+        week: weekKey,
+        total_sets: 0,
+        hard_sets: 0,
+        hold_seconds_planche: 0,
+        hold_seconds_front: 0,
+        dynamic_reps_planche: 0,
+        dynamic_reps_front: 0,
+        global_score: 0,
+        hard_ratio: 0,
+      });
+    }
+
+    const metrics = metricsByWeek.get(weekKey)!;
+
+    // Accumulate hold seconds from combo items
+    if (item.movement === 'hold' || item.movement === 'negative') {
+      const seconds = item.seconds || 0;
+      if (item.skill === 'planche') {
+        metrics.hold_seconds_planche += seconds;
+      } else if (item.skill === 'front') {
+        metrics.hold_seconds_front += seconds;
+      }
+    }
+
+    // Accumulate dynamic reps from combo items
+    if (item.movement === 'press' || item.movement === 'pushup' || item.movement === 'pullup') {
+      const reps = item.reps || 0;
+      if (item.skill === 'planche') {
+        metrics.dynamic_reps_planche += reps;
+      } else if (item.skill === 'front') {
+        metrics.dynamic_reps_front += reps;
+      }
+    }
   });
 
   // Convert to sorted array (most recent first)
