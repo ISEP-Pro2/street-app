@@ -17,6 +17,7 @@ export function SessionView() {
   const [session, setSession] = useState<Session | null>(null);
   const [sets, setSets] = useState<Set[]>([]);
   const [combos, setCombos] = useState<Combo[]>([]);
+  const [comboItems, setComboItems] = useState<any[]>([]);
   const [bodyweight, setBodyweight] = useState(75);
   const [loading, setLoading] = useState(true);
 
@@ -73,10 +74,24 @@ export function SessionView() {
           .order('performed_at', { ascending: true });
 
         setCombos((combosData || []) as Combo[]);
+
+        // Get combo items for this session
+        if (combosData && combosData.length > 0) {
+          const comboIds = combosData.map((c) => c.id);
+          const { data: itemsData } = await supabase
+            .from('combo_items')
+            .select('*')
+            .in('combo_id', comboIds);
+
+          setComboItems(itemsData || []);
+        } else {
+          setComboItems([]);
+        }
       } else {
         setSession(null);
         setSets([]);
         setCombos([]);
+        setComboItems([]);
       }
     } catch (error) {
       console.error('Error loading session:', error);
@@ -101,6 +116,7 @@ export function SessionView() {
   };
 
   const calculateTotals = () => {
+    // Calculate from sets
     const totalSeconds = sets
       .filter((s) => s.seconds)
       .reduce((acc, s) => acc + (s.seconds || 0), 0);
@@ -111,7 +127,26 @@ export function SessionView() {
 
     const hardSets = sets.filter((s) => s.rpe >= 8).length;
 
-    return { totalSeconds, totalReps, hardSets };
+    // Add combo items data
+    let comboSeconds = 0;
+    let comboReps = 0;
+
+    for (const item of comboItems) {
+      // Add holds to seconds
+      if (item.movement === 'hold' && item.seconds) {
+        comboSeconds += item.seconds;
+      }
+      // Add press, negative, pushup, pullup to reps
+      if (['press', 'negative', 'pushup', 'pullup'].includes(item.movement) && item.reps) {
+        comboReps += item.reps;
+      }
+    }
+
+    return { 
+      totalSeconds: totalSeconds + comboSeconds, 
+      totalReps: totalReps + comboReps, 
+      hardSets 
+    };
   };
 
   if (loading) {
