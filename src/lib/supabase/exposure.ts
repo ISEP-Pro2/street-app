@@ -1,6 +1,7 @@
 /**
  * EXPOSURE DATA QUERIES
- * Fetch hold data from sets and combos for ETP calculations
+ * Fetch all movement data from sets and combos for ETP calculations
+ * Note: ETP calculation will filter by movement type (only holds count as exposure)
  */
 
 import { createClient as getServerSupabaseClient } from './server';
@@ -11,12 +12,11 @@ export async function getSessionExposureData(sessionId: string): Promise<Exposur
 
   const entries: ExposureEntry[] = [];
 
-  // Fetch sets with holds
+  // Fetch all sets (holds and other movements)
   const { data: sets } = await client
     .from('sets')
     .select('skill, technique, movement, seconds, assistance_kg')
-    .eq('session_id', sessionId)
-    .eq('movement', 'hold');
+    .eq('session_id', sessionId);
 
   if (sets) {
     entries.push(
@@ -41,8 +41,7 @@ export async function getSessionExposureData(sessionId: string): Promise<Exposur
       const { data: items } = await client
         .from('combo_items')
         .select('skill, technique, movement, seconds, assistance_kg')
-        .eq('combo_id', combo.id)
-        .eq('movement', 'hold');
+        .eq('combo_id', combo.id);
 
       if (items) {
         entries.push(
@@ -80,12 +79,11 @@ export async function getUserLastNWeeksExposure(
   const startDateStr = startDate.toISOString().split('T')[0];
   const endDateStr = endDate.toISOString().split('T')[0];
 
-  // Fetch sets with holds from date range
+  // Fetch all sets from date range (holds and other movements)
   const { data: sets } = await client
     .from('sets')
     .select('skill, technique, movement, seconds, assistance_kg, performed_at')
     .eq('user_id', userId)
-    .eq('movement', 'hold')
     .gte('performed_at', `${startDateStr}T00:00:00`)
     .lte('performed_at', `${endDateStr}T23:59:59`);
 
@@ -115,8 +113,7 @@ export async function getUserLastNWeeksExposure(
       const { data: items } = await client
         .from('combo_items')
         .select('skill, technique, movement, seconds, assistance_kg')
-        .eq('combo_id', combo.id)
-        .eq('movement', 'hold');
+        .eq('combo_id', combo.id);
 
       if (items) {
         entries.push(
