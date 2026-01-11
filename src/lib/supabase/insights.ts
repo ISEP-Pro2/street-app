@@ -503,7 +503,7 @@ export async function getWeeklyTrainingMetrics(userId: string) {
     }
 
     // Accumulate dynamic reps by skill
-    if (set.movement === 'press' || set.movement === 'pushup' || set.movement === 'combo') {
+    if (set.movement === 'press' || set.movement === 'pushup' || set.movement === 'pullup' || set.movement === 'negative' || set.movement === 'combo') {
       const reps = set.reps || 0;
       if (set.skill === 'planche') {
         metrics.dynamic_reps_planche += reps;
@@ -563,7 +563,7 @@ export async function getWeeklyTrainingMetrics(userId: string) {
     }
 
     // Accumulate dynamic reps from combo items
-    if (item.movement === 'press' || item.movement === 'pushup' || item.movement === 'pullup') {
+    if (item.movement === 'press' || item.movement === 'pushup' || item.movement === 'pullup' || item.movement === 'negative') {
       const reps = item.reps || 0;
       if (item.skill === 'planche') {
         metrics.dynamic_reps_planche += reps;

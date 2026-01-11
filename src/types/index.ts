@@ -5,7 +5,7 @@ export type Technique =
   | 'tuck' | 'adv_tuck' | 'full'; // front
 
 export type Movement =
-  | 'hold' | 'press' | 'pushup' | 'negative' | 'combo';
+  | 'hold' | 'press' | 'pushup' | 'pullup' | 'negative' | 'combo';
 
 export type AssistanceType = 'none' | 'band_5' | 'band_15' | 'band_25';
 
