@@ -11,6 +11,8 @@ import type { Session, Set } from '@/types';
 
 interface SessionWithSets extends Session {
   sets?: Set[];
+  combos?: any[];
+  comboItems?: any[];
 }
 
 export function HistoryView() {
@@ -55,15 +57,37 @@ export function HistoryView() {
 
   const loadSessionDetails = async (sessionId: string) => {
     try {
+      // Load sets
       const { data: setsData } = await supabase
         .from('sets')
         .select('*')
         .eq('session_id', sessionId)
         .order('performed_at', { ascending: true });
 
+      // Load combos
+      const { data: combosData } = await supabase
+        .from('combos')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('performed_at', { ascending: true });
+
+      // Load combo items if combos exist
+      let allComboItems: any[] = [];
+      if (combosData && combosData.length > 0) {
+        const comboIds = combosData.map((c) => c.id);
+        const { data: itemsData } = await supabase
+          .from('combo_items')
+          .select('*')
+          .in('combo_id', comboIds)
+          .order('created_at', { ascending: true });
+        allComboItems = itemsData || [];
+      }
+
       setSessions(
         sessions.map((s) =>
-          s.id === sessionId ? { ...s, sets: setsData || [] } : s
+          s.id === sessionId
+            ? { ...s, sets: setsData || [], combos: combosData || [], comboItems: allComboItems }
+            : s
         )
       );
     } catch (error) {
@@ -121,7 +145,7 @@ export function HistoryView() {
                   <div className="text-left">
                     <p className="font-semibold">{formatDate(session.session_date)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {session.sets?.length || '?'} sets
+                      {session.sets?.length || '?'} sets • {session.combos?.length || '?'} combos
                     </p>
                   </div>
                   <ChevronDown
@@ -150,7 +174,35 @@ export function HistoryView() {
                         </Card>
                       ))
                     ) : (
-                      <p className="text-xs text-muted-foreground">Loading sets...</p>
+                      <p className="text-xs text-muted-foreground">No sets</p>
+                    )}
+
+                    {session.combos && session.combos.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <p className="text-xs font-semibold text-primary mb-2">Combos</p>
+                        {session.combos.map((combo, comboIdx) => {
+                          const comboItemsForThisCombo = session.comboItems?.filter(
+                            (item) => item.combo_id === combo.id
+                          ) || [];
+                          return (
+                            <Card key={combo.id} className="p-3 bg-primary/10 mb-2">
+                              <p className="text-xs font-semibold mb-2">
+                                🎯 Combo {comboIdx + 1} ({comboItemsForThisCombo.length} items)
+                              </p>
+                              <div className="text-xs space-y-1 ml-2">
+                                {comboItemsForThisCombo.map((item, itemIdx) => (
+                                  <div key={item.id} className="text-muted-foreground">
+                                    • {SKILL_LABELS[item.skill]} {TECHNIQUE_LABELS[item.technique]} •{' '}
+                                    {MOVEMENT_LABELS[item.movement]}
+                                    {item.seconds && ` • ⏱ ${item.seconds}s`}
+                                    {item.reps && ` • 🔄 ${item.reps} reps`}
+                                  </div>
+                                ))}
+                              </div>
+                            </Card>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 )}
